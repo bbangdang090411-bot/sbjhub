@@ -225,14 +225,21 @@ html,body{width:100%;max-width:100%;overflow-x:clip}
  #sbj-assistant-panel{position:fixed;top:8px;right:8px;width:min(390px,calc(100vw - 16px));height:calc(100dvh - 16px);max-height:calc(100dvh - 16px)}
 }
 </style>
-<div id="sbj-assistant" hidden><button id="sbj-assistant-toggle" type="button">✦ SBJ Assistant</button><section id="sbj-assistant-panel" aria-label="SBJ Assistant"><div class="sbj-chat-head"><strong>SBJ Assistant</strong><button id="sbj-assistant-close" type="button" aria-label="닫기">×</button></div><div id="sbj-chat-messages" aria-live="polite"></div><form id="sbj-chat-form"><input id="sbj-chat-input" aria-label="질문" placeholder="노트북 1개 11월 10일까지 대여해줘" autocomplete="off"><button>전송</button></form></section></div>
+<div id="sbj-assistant" hidden><button id="sbj-assistant-toggle" type="button">✦ SBJ Assistant</button><section id="sbj-assistant-panel" aria-label="SBJ Assistant"><div class="sbj-chat-head"><strong>SBJ Assistant</strong><button id="sbj-assistant-clear" type="button" title="대화 기록 삭제" aria-label="대화 기록 삭제" style="margin-left:auto;font-size:12px">기록 삭제</button><button id="sbj-assistant-close" type="button" aria-label="닫기">×</button></div><div id="sbj-chat-messages" aria-live="polite"></div><form id="sbj-chat-form"><input id="sbj-chat-input" aria-label="질문" placeholder="노트북 1개 11월 10일까지 대여해줘" autocomplete="off"><button>전송</button></form></section></div>
 <script>
 (function(){
 const host=document.getElementById('sbj-assistant'),messages=document.getElementById('sbj-chat-messages'),input=document.getElementById('sbj-chat-input');
-const sync=()=>{host.hidden=!user};new MutationObserver(sync).observe(document.getElementById('root'),{childList:true});sync();
+let activeChatUser=null;
+const chatKey=id=>'sbj-assistant-history-v1:'+id;
+const loadHistory=id=>{try{const items=JSON.parse(localStorage.getItem(chatKey(id))||'[]');return Array.isArray(items)?items.slice(-100).filter(x=>x&&typeof x.text==='string'&&typeof x.mine==='boolean'):[]}catch{return []}};
+const saveHistory=()=>{if(!activeChatUser)return;try{const items=[...messages.querySelectorAll('.sbj-chat-message')].map(d=>({text:d.firstChild?.nodeType===3?d.firstChild.textContent:d.textContent,mine:d.classList.contains('mine')})).filter(x=>x.text).slice(-100);localStorage.setItem(chatKey(activeChatUser),JSON.stringify(items))}catch{}};
+const renderHistory=id=>{messages.replaceChildren();for(const item of loadHistory(id)){const d=document.createElement('div');d.className='sbj-chat-message'+(item.mine?' mine':'');d.textContent=item.text;messages.append(d)}messages.scrollTop=messages.scrollHeight};
+const sync=()=>{host.hidden=!user;const id=user?.id||null;if(id!==activeChatUser){activeChatUser=id;messages.replaceChildren();if(id)renderHistory(id)}};
+new MutationObserver(sync).observe(document.getElementById('root'),{childList:true});sync();
 document.getElementById('sbj-assistant-toggle').onclick=()=>{host.classList.toggle('open');input.focus()};
 document.getElementById('sbj-assistant-close').onclick=()=>host.classList.remove('open');
-const say=(t,mine=false)=>{const d=document.createElement('div');d.className='sbj-chat-message'+(mine?' mine':'');d.textContent=t;messages.append(d);messages.scrollTop=messages.scrollHeight;return d};
+document.getElementById('sbj-assistant-clear').onclick=()=>{if(!activeChatUser||!confirm('이 브라우저에 저장된 SBJ Assistant 대화 기록을 삭제할까요?'))return;localStorage.removeItem(chatKey(activeChatUser));messages.replaceChildren();pendingRental=null};
+const say=(t,mine=false)=>{const d=document.createElement('div');d.className='sbj-chat-message'+(mine?' mine':'');d.textContent=t;messages.append(d);messages.scrollTop=messages.scrollHeight;saveHistory();return d};
 const btn=(d,label,fn)=>{const b=document.createElement('button');b.textContent=label;b.type='button';b.onclick=fn;d.append(b)};
 let pendingRental=null;
 const interpret=async message=>{try{const r=await sb.functions.invoke('sbj-ai-interpret',{body:{message}});return r.error||r.data?.error?null:r.data}catch{return null}};
