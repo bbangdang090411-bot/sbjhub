@@ -258,6 +258,25 @@ if(qty>available){say(a.name+'의 대여 가능 수량은 '+available+'개예요
 const d=say('대여 내용을 확인해 주세요.\n기자재: '+a.name+'\n수량: '+qty+'개\n반납 예정일: '+date);
 btn(d,'대여 확정',async()=>{d.querySelectorAll('button').forEach(b=>b.disabled=true);const r=await sb.rpc('sbj_checkout',{p_asset:a.id,p_quantity:qty,p_due:due.toISOString()});if(r.error){say('대여 실패: '+r.error.message);return}say('대여가 완료됐어요.');await refresh()});
 btn(d,'취소',()=>{d.querySelectorAll('button').forEach(b=>b.disabled=true);say('요청을 취소했어요.')});return}
+if(/반납/.test(q)&&!/반납일|반납 예정일|반납 기한|남은 시간/.test(q)){
+const loans=data.loans.filter(x=>x.user_id===user.id&&!x.returned_at&&!x.deleted_at);
+if(!loans.length){say('반납할 기자재가 없어요.');return}
+const matches=loans.filter(x=>q.includes(aBy(x.asset_id)?.name||'__none__'));
+const selected=matches.length?matches:loans;
+if(!matches.length&&loans.length>1)say('반납할 기자재를 아래에서 선택해 주세요.');
+for(const loan of selected){
+const name=aBy(loan.asset_id)?.name||'기자재';
+const d=say(name+' · '+loan.quantity+'개 · 반납 상태를 선택하세요.');
+for(const condition of ['정상','고장','부품 누락'])btn(d,condition,()=>{
+d.querySelectorAll('button').forEach(b=>b.disabled=true);
+const detail=condition==='정상'?'':prompt('문제 상세 설명');
+if(condition!=='정상'&&!detail){say('반납을 취소했어요.');return}
+const c=say(name+' '+loan.quantity+'개를 '+condition+' 상태로 반납할까요?');
+btn(c,'반납 확정',async()=>{c.querySelectorAll('button').forEach(b=>b.disabled=true);const r=await sb.rpc('sbj_return_with_condition',{p_loan:loan.id,p_condition:condition,p_detail:detail||''});if(r.error){say('반납 실패: '+r.error.message);return}say('반납이 완료됐어요.');await refresh()});
+btn(c,'취소',()=>{c.querySelectorAll('button').forEach(b=>b.disabled=true);say('반납을 취소했어요.')})
+})
+}
+return}
 if(ai?.intent==='my_loans'||/반납|남은 시간/.test(q)){const loans=data.loans.filter(x=>x.user_id===user.id&&!x.returned_at&&!x.deleted_at);say(loans.length?loans.map(x=>(aBy(x.asset_id)?.name||'기자재')+' '+x.quantity+'개 · '+remain(x)).join('\n'):'현재 대여 중인 기자재가 없어요.');return}
 if(ai?.intent==='my_incidents'||/고장|수리|분실|신고/.test(q)){const incidents=data.incidents.filter(x=>x.user_id===user.id).slice(-8);say(incidents.length?incidents.map(x=>(aBy(data.loans.find(l=>l.id===x.loan_id)?.asset_id)?.name||'기자재')+' · '+({reported:'접수',processing:'처리 중',resolved:'완료'}[x.status]||x.status)+(x.admin_comment?' · '+x.admin_comment:'')).join('\n'):'신고 내역이 없어요.');return}
 if(ai?.intent==='other'&&ai.reply){say(ai.reply);return}const term=(ai?.intent==='search'&&ai.asset?ai.asset:q).replace(/(있어|있나요|찾아줘|보여줘|검색해줘|추천해줘|대여 가능|기자재|좀|요|[?!.,])/g,'').trim();
