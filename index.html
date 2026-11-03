@@ -175,4 +175,53 @@ if(kind==='cancel'){await call(sb.from('sbj_reservations').update({status:'cance
 async function refresh(){if(!user)return;const refreshUserId=user.id;const specs=[['assets','sbj_assets'],['loans','sbj_loans'],['supplies','sbj_supplies'],['withdrawals','sbj_withdrawals'],['extensions','sbj_extensions'],['returns','sbj_returns'],['reservations','sbj_reservations'],['incidents','sbj_incidents'],['alerts','sbj_alerts'],['profiles','sbj_profiles'],['admins','sbj_admins']];const [result,stockResult]=await Promise.all([Promise.all(specs.map(async([key,t])=>({key,...await sb.from(t).select('*').limit(2000)}))),sb.rpc('sbj_available_stock')]);if(!user||user.id!==refreshUserId)return;stockReady=!stockResult.error;if(stockReady)stockByAsset=Object.fromEntries((stockResult.data||[]).map(r=>[r.asset_id,Number(r.available)]));else{stockByAsset={};notice='재고 조회 실패: '+stockResult.error.message+' (로그인 상태를 확인하고 다시 시도해 주세요.)'}for(const r of result){if(r.error){notice=`${r.key}: ${r.error.message}`;data[r.key]=[]}else data[r.key]=r.data||[]}if(user){const recent=await sb.rpc('sbj_dashboard_recent_loans');allLoanError=recent.error?.message||'';allLoanRows=recent.data||[]}render()}
 async function init(){busy=true;render();const {data:{user:u},error}=await sb.auth.getUser();user=error?null:u;if(!user){busy=false;render();return}const [p,a]=await Promise.all([sb.from('sbj_profiles').select('*').eq('user_id',user.id).maybeSingle(),sb.from('sbj_admins').select('user_id').eq('user_id',user.id).maybeSingle()]);profile=p.data||{};if(profile.deactivated_at){await sb.auth.signOut();user=null;profile={};admin=false;notice='비활성화된 계정입니다. 관리자에게 문의해 주세요.';busy=false;render();return}admin=!!a.data;if(!admin){view='employee';if(['notifications','reports','accounts'].includes(page))page='home'}if(p.error||a.error)notice=p.error?.message||a.error?.message;busy=false;await refresh()}
 sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;busy=false;stockReady=false;stockByAsset={};notice='';render()}});init();setInterval(()=>{if(user&&page==='home'||page==='rentals')document.querySelectorAll('.remaining').forEach(()=>{});},30000);
+</script>
+<style>
+#sbj-assistant{position:fixed;right:16px;top:12px;z-index:9999;font-family:inherit}#sbj-assistant[hidden]{display:none}
+#sbj-assistant button{cursor:pointer}#sbj-assistant-toggle{border:0;border-radius:22px;background:#1755a1;color:white;padding:10px 14px;box-shadow:0 3px 14px #0003;font-weight:700}
+#sbj-assistant-panel{display:none;position:absolute;right:0;top:49px;width:min(370px,calc(100vw - 24px));height:min(490px,calc(100dvh - 75px));background:white;color:#1e293b;border:1px solid #dbe2ea;border-radius:14px;box-shadow:0 10px 35px #0003;overflow:hidden;flex-direction:column}
+#sbj-assistant.open #sbj-assistant-panel{display:flex}.sbj-chat-head{background:#1755a1;color:white;padding:13px;display:flex;justify-content:space-between}.sbj-chat-head button{background:none;border:0;color:white;font-size:20px}
+#sbj-chat-messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px}.sbj-chat-message{background:#edf2f8;padding:10px;border-radius:10px;white-space:pre-wrap;font-size:13px;line-height:1.6}.sbj-chat-message.mine{background:#dceafe;align-self:flex-end}
+.sbj-chat-message button{margin:6px 5px 0 0;background:white;border:1px solid #b6c7dc;border-radius:7px;padding:6px}
+#sbj-chat-form{display:flex;gap:6px;padding:10px;border-top:1px solid #ddd}#sbj-chat-form input{flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:7px;padding:9px}#sbj-chat-form button{background:#1755a1;border:0;color:white;border-radius:7px;padding:8px}
+@media(max-width:600px){#sbj-assistant{right:8px;top:7px}#sbj-assistant-toggle{font-size:12px;padding:8px}}
+</style>
+<div id="sbj-assistant" hidden><button id="sbj-assistant-toggle" type="button">✦ SBJ Assistant</button><section id="sbj-assistant-panel" aria-label="SBJ Assistant"><div class="sbj-chat-head"><strong>SBJ Assistant</strong><button id="sbj-assistant-close" type="button" aria-label="닫기">×</button></div><div id="sbj-chat-messages" aria-live="polite"></div><form id="sbj-chat-form"><input id="sbj-chat-input" aria-label="질문" placeholder="노트북 1개 11월 10일까지 대여해줘" autocomplete="off"><button>전송</button></form></section></div>
+<script>
+(function(){
+const host=document.getElementById('sbj-assistant'),messages=document.getElementById('sbj-chat-messages'),input=document.getElementById('sbj-chat-input');
+const sync=()=>{host.hidden=!user};new MutationObserver(sync).observe(document.getElementById('root'),{childList:true});sync();
+document.getElementById('sbj-assistant-toggle').onclick=()=>{host.classList.toggle('open');input.focus()};
+document.getElementById('sbj-assistant-close').onclick=()=>host.classList.remove('open');
+const say=(t,mine=false)=>{const d=document.createElement('div');d.className='sbj-chat-message'+(mine?' mine':'');d.textContent=t;messages.append(d);messages.scrollTop=messages.scrollHeight;return d};
+const btn=(d,label,fn)=>{const b=document.createElement('button');b.textContent=label;b.type='button';b.onclick=fn;d.append(b)};
+const stock=async()=>{const r=await sb.rpc('sbj_available_stock');if(r.error)throw Error(r.error.message);return r.data||[]};
+const pad=n=>String(n).padStart(2,'0');
+const parseDate=q=>{let d=new Date(),m=q.match(/(?:(20\d{2})[년.\/-]\s*)?(\d{1,2})[월.\/-]\s*(\d{1,2})일?/);if(/내일/.test(q))d.setDate(d.getDate()+1);else if(m){let y=Number(m[1]||d.getFullYear()),mo=Number(m[2]),day=Number(m[3]);d=new Date(y,mo-1,day);if(!m[1]&&d<new Date(new Date().toDateString()))d=new Date(y+1,mo-1,day);if(d.getMonth()+1!==mo||d.getDate()!==day)return null}else if(!/오늘/.test(q))return null;return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+say('안녕하세요! 기자재 검색, 대여 요청, 내 반납일 및 신고 상태를 확인할 수 있어요.');
+document.getElementById('sbj-chat-form').onsubmit=async e=>{e.preventDefault();if(!user)return;const q=input.value.trim();if(!q)return;input.value='';say(q,true);
+try{
+if(/대여해|빌려|대여할|빌릴/.test(q)){
+const candidates=data.assets.filter(a=>!a.archived_at&&!a.is_consumable&&q.includes(a.name)).sort((a,b)=>b.name.length-a.name.length);
+if(!candidates.length){say('등록된 기자재 이름을 찾지 못했어요. 정확한 기자재명을 입력해 주세요.');return}
+if(candidates.length>1&&candidates[0].name.length===candidates[1].name.length){say('여러 기자재가 검색됐어요. 정확한 이름을 입력해 주세요.');return}
+const a=candidates[0],m=q.match(/(\d+)\s*(?:개|대|점)/),qty=m?Number(m[1]):1,date=parseDate(q);
+if(!date){say('반납일을 확인할 수 없어요. 예: 노트북 1개 11월 10일까지 대여해줘');return}
+if(!Number.isSafeInteger(qty)||qty<1){say('수량을 확인해 주세요.');return}
+const due=new Date(date+'T23:59:59');if(due<=new Date()){say('미래의 반납일을 입력해 주세요.');return}
+const available=Number((await stock()).find(x=>x.asset_id===a.id)?.available||0);
+if(qty>available){say(a.name+'의 대여 가능 수량은 '+available+'개예요.');return}
+const d=say('대여 내용을 확인해 주세요.\n기자재: '+a.name+'\n수량: '+qty+'개\n반납 예정일: '+date);
+btn(d,'대여 확정',async()=>{d.querySelectorAll('button').forEach(b=>b.disabled=true);const r=await sb.rpc('sbj_checkout',{p_asset:a.id,p_quantity:qty,p_due:due.toISOString()});if(r.error){say('대여 실패: '+r.error.message);return}say('대여가 완료됐어요.');await refresh()});
+btn(d,'취소',()=>{d.querySelectorAll('button').forEach(b=>b.disabled=true);say('요청을 취소했어요.')});return}
+if(/반납|남은 시간/.test(q)){const loans=data.loans.filter(x=>x.user_id===user.id&&!x.returned_at&&!x.deleted_at);say(loans.length?loans.map(x=>(aBy(x.asset_id)?.name||'기자재')+' '+x.quantity+'개 · '+remain(x)).join('\n'):'현재 대여 중인 기자재가 없어요.');return}
+if(/고장|수리|분실|신고/.test(q)){const incidents=data.incidents.filter(x=>x.user_id===user.id).slice(-8);say(incidents.length?incidents.map(x=>(aBy(data.loans.find(l=>l.id===x.loan_id)?.asset_id)?.name||'기자재')+' · '+({reported:'접수',processing:'처리 중',resolved:'완료'}[x.status]||x.status)+(x.admin_comment?' · '+x.admin_comment:'')).join('\n'):'신고 내역이 없어요.');return}
+const term=q.replace(/(있어|있나요|찾아줘|보여줘|검색해줘|추천해줘|대여 가능|기자재|좀|요|[?!.,])/g,'').trim();
+if(!term){say('찾으려는 기자재 이름을 입력해 주세요.');return}
+const found=data.assets.filter(a=>!a.archived_at&&!a.is_consumable&&(a.name.includes(term)||term.includes(a.name))).slice(0,8);
+if(!found.length){say('관련 기자재를 찾지 못했어요.');return}
+const stocks=await stock();say(found.map(a=>a.name+' · 대여 가능 '+Number(stocks.find(x=>x.asset_id===a.id)?.available||0)+'개').join('\n'));
+}catch(err){say('요청 처리 중 오류가 발생했어요: '+err.message)}
+};
+})();
 </script></body></html>
