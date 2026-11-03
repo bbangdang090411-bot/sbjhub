@@ -185,6 +185,45 @@ sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;busy=fals
 .sbj-chat-message button{margin:6px 5px 0 0;background:white;border:1px solid #b6c7dc;border-radius:7px;padding:6px}
 #sbj-chat-form{display:flex;flex-shrink:0;gap:6px;padding:10px;border-top:1px solid #ddd}#sbj-chat-form input{flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:7px;padding:9px}#sbj-chat-form button{background:#1755a1;border:0;color:white;border-radius:7px;padding:8px}
 @media(max-width:600px){#sbj-assistant{right:12px;top:116px}#sbj-assistant-toggle{font-size:12px;padding:8px}#sbj-assistant-panel{right:10px;top:160px;width:calc(100vw - 20px);height:min(560px,calc(100dvh - 175px));max-height:calc(100dvh - 175px);border-radius:12px}}@media(max-height:420px){#sbj-assistant-panel{top:12px;height:calc(100dvh - 24px);max-height:calc(100dvh - 24px)}}
+
+/* Consistent responsive layout: keep page geometry independent of content. */
+html,body{width:100%;max-width:100%;overflow-x:clip}
+.app{width:100%;max-width:100%;align-items:stretch}
+.main{flex:1 1 0%;width:0;min-width:0;max-width:100%;overflow:clip}
+.top{width:100%;min-width:0;gap:14px}
+.top>.inline{min-width:0;flex:1 1 auto}
+.top>.inline strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-right{flex:0 1 auto;min-width:0;max-width:75%;justify-content:flex-end}
+.top-right>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.content{width:100%;max-width:1400px;min-width:0;margin:0 auto}
+.content>*{max-width:100%}
+.cards,.grid2{min-width:0}
+.cards>* , .grid2>*{min-width:0}
+.panel,.card{min-width:0;max-width:100%}
+.tablewrap{width:100%;max-width:100%;overflow-x:auto}
+#sbj-assistant{position:fixed;right:max(16px,env(safe-area-inset-right,0px));top:clamp(104px,16vh,160px);max-width:calc(100vw - 24px)}
+#sbj-assistant-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(390px,calc(100vw - 28px));height:min(540px,calc(100dvh - 230px));max-height:calc(100dvh - 230px);min-height:0}
+@media(min-width:701px) and (max-width:1150px){
+ .top{padding-inline:20px}
+ .content{padding-inline:20px}
+ .top-right{gap:7px;font-size:12px}
+ .top-right .btn{font-size:12px}
+ .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:700px){
+ .main{flex:1 1 100%;width:100%;overflow:clip}
+ .top{gap:6px}
+ .top>.inline{flex:1 1 auto}
+ .top-right{max-width:65%;flex:0 1 auto}
+ .content{width:100%;padding-inline:12px}
+ #sbj-assistant{right:12px;top:clamp(90px,14vh,130px)}
+ #sbj-assistant-panel{position:absolute;top:calc(100% + 9px);right:0;width:calc(100vw - 24px);height:min(520px,calc(100dvh - 195px));max-height:calc(100dvh - 195px)}
+ .footer{position:static;display:block;width:max-content;max-width:100%;margin-top:22px}
+}
+@media(max-height:480px){
+ #sbj-assistant{top:78px}
+ #sbj-assistant-panel{position:fixed;top:8px;right:8px;width:min(390px,calc(100vw - 16px));height:calc(100dvh - 16px);max-height:calc(100dvh - 16px)}
+}
 </style>
 <div id="sbj-assistant" hidden><button id="sbj-assistant-toggle" type="button">✦ SBJ Assistant</button><section id="sbj-assistant-panel" aria-label="SBJ Assistant"><div class="sbj-chat-head"><strong>SBJ Assistant</strong><button id="sbj-assistant-close" type="button" aria-label="닫기">×</button></div><div id="sbj-chat-messages" aria-live="polite"></div><form id="sbj-chat-form"><input id="sbj-chat-input" aria-label="질문" placeholder="노트북 1개 11월 10일까지 대여해줘" autocomplete="off"><button>전송</button></form></section></div>
 <script>
