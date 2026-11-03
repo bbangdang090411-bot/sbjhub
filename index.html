@@ -240,12 +240,12 @@ const parseDate=q=>{let d=new Date(),m=q.match(/(?:(20\d{2})[년.\/-]\s*)?(\d{1,
 say('안녕하세요! 기자재 검색, 대여 요청, 내 반납일 및 신고 상태를 확인할 수 있어요.');
 document.getElementById('sbj-chat-form').onsubmit=async e=>{e.preventDefault();if(!user)return;const q=input.value.trim();if(!q)return;input.value='';say(q,true);
 try{
-if(/대여해|빌려|대여할|빌릴/.test(q)){
+if(/대여|빌려|빌릴|빌리고|빌리려|빌리고싶|빌리고 싶|빌려줘|빌려 줘|대여해|대여 해/.test(q)){
 const candidates=data.assets.filter(a=>!a.archived_at&&!a.is_consumable&&q.includes(a.name)).sort((a,b)=>b.name.length-a.name.length);
-if(!candidates.length){say('등록된 기자재 이름을 찾지 못했어요. 정확한 기자재명을 입력해 주세요.');return}
+if(!candidates.length){say('대여할 기자재를 찾지 못했어요. 등록된 기자재명을 알려주세요.');return}
 if(candidates.length>1&&candidates[0].name.length===candidates[1].name.length){say('여러 기자재가 검색됐어요. 정확한 이름을 입력해 주세요.');return}
 const a=candidates[0],m=q.match(/(\d+)\s*(?:개|대|점)/),qty=m?Number(m[1]):1,date=parseDate(q);
-if(!date){say('반납일을 확인할 수 없어요. 예: 노트북 1개 11월 10일까지 대여해줘');return}
+if(!date){say('언제까지 대여할까요? 예: 11월 10일까지');return}
 if(!Number.isSafeInteger(qty)||qty<1){say('수량을 확인해 주세요.');return}
 const due=new Date(date+'T23:59:59');if(due<=new Date()){say('미래의 반납일을 입력해 주세요.');return}
 const available=Number((await stock()).find(x=>x.asset_id===a.id)?.available||0);
